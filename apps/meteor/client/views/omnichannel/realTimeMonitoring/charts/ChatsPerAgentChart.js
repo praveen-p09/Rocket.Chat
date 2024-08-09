@@ -5,17 +5,13 @@ import { drawLineChart } from '../../../../../app/livechat/client/lib/chartHandl
 import { AsyncStatePhase } from '../../../../hooks/useAsyncState';
 import { useEndpointData } from '../../../../hooks/useEndpointData';
 import Chart from './Chart';
+import { useClearChartData } from './hooks/useClearChartData';
 import { useUpdateChartData } from './useUpdateChartData';
-
-const initialData = {
-	agents: {},
-	success: true,
-};
 
 const init = (canvas, context, t) =>
 	drawLineChart(canvas, context, [t('Open'), t('Closed'), t('On_Hold_Chats')], [], [[], []], {
 		legends: true,
-		anim: true,
+		anim: false,
 		smallTicks: true,
 	});
 
@@ -24,19 +20,24 @@ const ChatsPerAgentChart = ({ params, reloadRef, ...props }) => {
 
 	const canvas = useRef();
 	const context = useRef();
+	const prevDataLabels = useRef();
 
 	const updateChartData = useUpdateChartData({
 		context,
 		canvas,
-		t,
-		init,
+	});
+	const clearChartData = useClearChartData({
+		context,
+		canvas,
 	});
 
-	const { value: data, phase: state, reload } = useEndpointData('/v1/livechat/analytics/dashboards/charts/chats-per-agent', { params });
+	const {
+		value: chartData,
+		phase: state,
+		reload,
+	} = useEndpointData('/v1/livechat/analytics/dashboards/charts/chats-per-agent', { params });
 
 	reloadRef.current.chatsPerAgentChart = reload;
-
-	const chartData = data ?? initialData;
 
 	useEffect(() => {
 		const initChart = async () => {
@@ -48,13 +49,22 @@ const ChatsPerAgentChart = ({ params, reloadRef, ...props }) => {
 	useEffect(() => {
 		if (state === AsyncStatePhase.RESOLVED) {
 			if (chartData && chartData.success) {
-				delete chartData.success;
-				Object.entries(chartData).forEach(([name, value]) => {
+				const { success, ...filteredChartData } = chartData;
+
+				// TODO: Refactor updateChartData to better handle line charts
+				if (JSON.stringify(prevDataLabels?.current) !== JSON.stringify(Object.keys(filteredChartData))) {
+					clearChartData();
+				}
+
+				Object.entries(filteredChartData).forEach(([name, value]) => {
 					updateChartData(name, [value.open, value.closed, value.onhold]);
 				});
+				prevDataLabels.current = Object.keys(filteredChartData);
+			} else {
+				clearChartData();
 			}
 		}
-	}, [chartData, state, t, updateChartData]);
+	}, [chartData, clearChartData, state, t, updateChartData]);
 
 	return <Chart ref={canvas} {...props} />;
 };

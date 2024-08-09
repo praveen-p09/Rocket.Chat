@@ -209,8 +209,8 @@ export const drawDoughnutChart = async (
  * @param  {String} label [chart label]
  * @param  {Array(Double)} data  [updated data]
  */
-export const updateChart = async (c: ChartType, label: string, data: { [x: string]: number }): Promise<void> => {
-	const chart = await c;
+export const updateChart = (c: ChartType, label: string, data: { [x: string]: number }): void => {
+	const chart = c;
 	if (chart.data?.labels?.indexOf(label) === -1) {
 		// insert data
 		chart.data.labels.push(label);
@@ -229,5 +229,13 @@ export const updateChart = async (c: ChartType, label: string, data: { [x: strin
 		});
 	}
 
+	chart.update();
+};
+
+export const clearChart = async (chart: ChartType): Promise<void> => {
+	chart.data.labels?.pop();
+	chart.data.datasets.forEach((dataset) => {
+		dataset.data.pop();
+	});
 	chart.update();
 };

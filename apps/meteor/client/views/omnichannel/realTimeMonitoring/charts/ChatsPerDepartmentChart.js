@@ -5,16 +5,13 @@ import { drawLineChart } from '../../../../../app/livechat/client/lib/chartHandl
 import { AsyncStatePhase } from '../../../../hooks/useAsyncState';
 import { useEndpointData } from '../../../../hooks/useEndpointData';
 import Chart from './Chart';
+import { useClearChartData } from './hooks/useClearChartData';
 import { useUpdateChartData } from './useUpdateChartData';
-
-const initialData = {
-	departments: {},
-};
 
 const init = (canvas, context, t) =>
 	drawLineChart(canvas, context, [t('Open'), t('Closed')], [], [[], []], {
 		legends: true,
-		anim: true,
+		anim: false,
 		smallTicks: true,
 	});
 
@@ -23,23 +20,25 @@ const ChatsPerDepartmentChart = ({ params, reloadRef, ...props }) => {
 
 	const canvas = useRef();
 	const context = useRef();
+	const prevDataLabels = useRef();
 
 	const updateChartData = useUpdateChartData({
 		context,
 		canvas,
-		t,
-		init,
+	});
+
+	const clearChartData = useClearChartData({
+		context,
+		canvas,
 	});
 
 	const {
-		value: data,
+		value: chartData,
 		phase: state,
 		reload,
 	} = useEndpointData('/v1/livechat/analytics/dashboards/charts/chats-per-department', { params });
 
 	reloadRef.current.chatsPerDepartmentChart = reload;
-
-	const chartData = data ?? initialData;
 
 	useEffect(() => {
 		const initChart = async () => {
@@ -49,15 +48,23 @@ const ChatsPerDepartmentChart = ({ params, reloadRef, ...props }) => {
 	}, [t]);
 
 	useEffect(() => {
+		console.log(state);
 		if (state === AsyncStatePhase.RESOLVED) {
 			if (chartData && chartData.success) {
-				delete chartData.success;
-				Object.entries(chartData).forEach(([name, value]) => {
+				const { success, ...filteredChartData } = chartData;
+
+				// TODO: Refactor updateChartData to better handle line charts
+				if (JSON.stringify(prevDataLabels?.current) !== JSON.stringify(Object.keys(filteredChartData))) {
+					clearChartData();
+				}
+				Object.entries(filteredChartData).forEach(([name, value]) => {
 					updateChartData(name, [value.open, value.closed]);
 				});
+			} else {
+				clearChartData();
 			}
 		}
-	}, [chartData, state, t, updateChartData]);
+	}, [chartData, clearChartData, state, updateChartData]);
 
 	return <Chart ref={canvas} {...props} />;
 };
